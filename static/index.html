@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CISSOU — ESI Assistant</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --panel:#ffffff; --ink:#12211a; --muted:#5f7267;
+    --brand:#1f7a4d; --brand-ink:#ffffff; --line:#dfe6e2;
+    --user:#1f7a4d; --bot:#eef2f0; --danger:#b3261e;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0f1512; --panel:#161d19; --ink:#e6ede9; --muted:#93a69c;
+      --brand:#2f9e63; --line:#26302b; --bot:#1e2723;
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--ink);
+    height:100vh;display:flex;justify-content:center;align-items:center;padding:16px;
+  }
+  .app{
+    width:min(880px,100%);height:min(900px,100%);background:var(--panel);
+    border:1px solid var(--line);border-radius:16px;
+    display:flex;flex-direction:column;overflow:hidden;
+    box-shadow:0 12px 40px rgba(0,0,0,.10);
+  }
+  header{
+    padding:14px 18px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:12px;
+  }
+  .logo{
+    width:38px;height:38px;border-radius:11px;background:var(--brand);
+    color:var(--brand-ink);display:grid;place-items:center;
+    font-weight:700;font-size:15px;letter-spacing:.5px;flex:none;
+  }
+  .titles{flex:1;min-width:0}
+  h1{font-size:15px;font-weight:650}
+  .sub{font-size:12px;color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;background:#bbb;flex:none}
+  .dot.on{background:#2f9e63}.dot.off{background:var(--danger)}
+  #log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
+  .row{display:flex;gap:10px;max-width:88%}
+  .row.me{align-self:flex-end;flex-direction:row-reverse}
+  .avatar{
+    width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center;
+    font-size:11px;font-weight:700;background:var(--bot);color:var(--muted);
+  }
+  .row.me .avatar{background:var(--user);color:#fff}
+  .bubble{
+    padding:11px 14px;border-radius:14px;background:var(--bot);
+    overflow-wrap:anywhere;
+  }
+  .row.me .bubble{background:var(--user);color:#fff}
+  .bubble p{margin:0 0 .6em}.bubble p:last-child{margin:0}
+  .bubble ul,.bubble ol{margin:.3em 0 .6em 1.15em}
+  .bubble li{margin:.15em 0}
+  .bubble code{
+    background:rgba(127,127,127,.18);padding:1px 5px;border-radius:4px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;
+  }
+  .bubble strong{font-weight:650}
+  .src{margin-top:8px;font-size:11px;color:var(--muted)}
+  .src span{
+    display:inline-block;border:1px solid var(--line);border-radius:99px;
+    padding:1px 8px;margin:3px 4px 0 0;
+  }
+  .welcome{text-align:center;color:var(--muted);padding:26px 12px}
+  .welcome h2{font-size:17px;color:var(--ink);margin-bottom:6px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
+  .chip{
+    border:1px solid var(--line);background:transparent;color:var(--ink);
+    border-radius:99px;padding:7px 13px;font-size:12.5px;cursor:pointer;font-family:inherit;
+  }
+  .chip:hover{border-color:var(--brand);color:var(--brand)}
+  .typing span{
+    display:inline-block;width:6px;height:6px;margin-right:3px;border-radius:50%;
+    background:var(--muted);animation:blink 1.3s infinite ease-in-out;
+  }
+  .typing span:nth-child(2){animation-delay:.16s}
+  .typing span:nth-child(3){animation-delay:.32s}
+  @keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+  footer{border-top:1px solid var(--line);padding:12px 14px}
+  form{display:flex;gap:9px;align-items:flex-end}
+  textarea{
+    flex:1;resize:none;font:inherit;color:inherit;background:transparent;
+    border:1px solid var(--line);border-radius:12px;padding:10px 13px;
+    max-height:130px;outline:none;
+  }
+  textarea:focus{border-color:var(--brand)}
+  button.send{
+    border:0;background:var(--brand);color:#fff;border-radius:12px;
+    padding:11px 18px;font:inherit;font-weight:600;cursor:pointer;
+  }
+  button.send:disabled{opacity:.5;cursor:not-allowed}
+  .bar{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
+  .hint{font-size:11px;color:var(--muted)}
+  .linkbtn{background:none;border:0;color:var(--muted);font:inherit;font-size:11px;
+    cursor:pointer;text-decoration:underline}
+  .err{color:var(--danger)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">CS</div>
+    <div class="titles">
+      <h1>CISSOU</h1>
+      <div class="sub">ESI student assistant · built by the CSE club</div>
+    </div>
+    <div class="dot" id="dot" title="checking…"></div>
+  </header>
+
+  <div id="log">
+    <div class="welcome" id="welcome">
+      <h2>Bienvenue à l'ESI 👋</h2>
+      <div>Ask me anything about ESI — courses, admission, CSE, student life.<br>
+           Posez vos questions en français ou en anglais.</div>
+      <div class="chips">
+        <button class="chip">Quelles sont les spécialités en 2CS ?</button>
+        <button class="chip">What courses are in 1CP?</button>
+        <button class="chip">Comment rejoindre le CSE ?</button>
+        <button class="chip">What is the admission average?</button>
+        <button class="chip">Qui a développé CISSOU ?</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <form id="form">
+      <textarea id="input" rows="1" placeholder="Ask about ESI…"
+                autocomplete="off" maxlength="2000"></textarea>
+      <button class="send" id="send" type="submit">Send</button>
+    </form>
+    <div class="bar">
+      <span class="hint">Enter to send · Shift+Enter for a new line</span>
+      <button class="linkbtn" id="reset" type="button">New conversation</button>
+    </div>
+  </footer>
+</div>
+
+<script>
+// Same-origin: works on localhost and in production without editing this file.
+const API = location.origin;
+const log = document.getElementById('log');
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const send = document.getElementById('send');
+const dot = document.getElementById('dot');
+let sessionId = sessionStorage.getItem('cissou_session') || null;
+
+/* Minimal Markdown -> HTML. Escapes first, so model output is never injected raw. */
+function render(md){
+  const esc = md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const lines = esc.split('\n');
+  let html = '', list = null;
+  const inline = s => s
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>');
+  for (let line of lines){
+    const ul = line.match(/^\s*[-•*]\s+(.*)$/);
+    const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (ul || ol){
+      const want = ul ? 'ul' : 'ol';
+      if (list !== want){ if (list) html += `</${list}>`; html += `<${want}>`; list = want; }
+      html += `<li>${inline((ul||ol)[1])}</li>`;
+    } else {
+      if (list){ html += `</${list}>`; list = null; }
+      if (line.trim()) html += `<p>${inline(line)}</p>`;
+    }
+  }
+  if (list) html += `</${list}>`;
+  return html || '<p></p>';
+}
+
+function bubble(role){
+  document.getElementById('welcome')?.remove();
+  const row = document.createElement('div');
+  row.className = 'row' + (role === 'me' ? ' me' : '');
+  row.innerHTML = `<div class="avatar">${role === 'me' ? 'You' : 'C'}</div>`;
+  const b = document.createElement('div');
+  b.className = 'bubble';
+  row.appendChild(b);
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+  return b;
+}
+
+function sources(el, list){
+  if (!list?.length) return;
+  const d = document.createElement('div');
+  d.className = 'src';
+  d.innerHTML = 'Sources: ' + list.slice(0,4).map(s =>
+    `<span>${s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`).join('');
+  el.appendChild(d);
+}
+
+async function ask(text){
+  bubble('me').textContent = text;
+  const out = bubble('bot');
+  out.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+  send.disabled = true;
+
+  try{
+    const res = await fetch(`${API}/api/chat/stream`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ message:text, session_id:sessionId })
+    });
+    if (!res.ok){
+      const err = await res.json().catch(()=>({}));
+      out.innerHTML = `<p class="err">${err.message || 'Request failed ('+res.status+')'}</p>`;
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', answer = '', srcs = [], first = true;
+
+    while (true){
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const frames = buf.split('\n\n');
+      buf = frames.pop();
+      for (const frame of frames){
+        if (!frame.startsWith('data: ')) continue;
+        let ev; try { ev = JSON.parse(frame.slice(6)); } catch { continue; }
+        if (ev.type === 'meta'){
+          sessionId = ev.session_id;
+          sessionStorage.setItem('cissou_session', sessionId);
+          srcs = ev.sources || [];
+        } else if (ev.type === 'delta'){
+          if (first){ out.innerHTML = ''; first = false; }
+          answer += ev.text;
+          out.innerHTML = render(answer);
+          log.scrollTop = log.scrollHeight;
+        } else if (ev.type === 'error'){
+          out.innerHTML = `<p class="err">${ev.message}</p>`;
+          return;
+        }
+      }
+    }
+    if (!answer) out.innerHTML = '<p class="err">No answer received. Please retry.</p>';
+    else sources(out, srcs);
+  } catch(e){
+    out.innerHTML = '<p class="err">Could not reach CISSOU. Is the server running?</p>';
+  } finally {
+    send.disabled = false;
+    input.focus();
+  }
+}
+
+form.addEventListener('submit', e => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text || send.disabled) return;
+  input.value = ''; input.style.height = 'auto';
+  ask(text);
+});
+
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 130) + 'px';
+});
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); form.requestSubmit(); }
+});
+log.addEventListener('click', e => {
+  if (e.target.classList.contains('chip')) ask(e.target.textContent);
+});
+document.getElementById('reset').addEventListener('click', async () => {
+  if (sessionId) await fetch(`${API}/api/session/reset`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({session_id: sessionId})
+  }).catch(()=>{});
+  sessionId = null; sessionStorage.removeItem('cissou_session');
+  location.reload();
+});
+
+fetch(`${API}/health`).then(r => r.json()).then(h => {
+  dot.className = 'dot ' + (h.llm_available ? 'on' : 'off');
+  dot.title = h.llm_available
+    ? `Online · ${h.knowledge.chunks} knowledge sections`
+    : 'No LLM credentials configured — offline mode';
+}).catch(() => { dot.className = 'dot off'; dot.title = 'Server unreachable'; });
+
+input.focus();
+</script>
+</body>
+</html>
