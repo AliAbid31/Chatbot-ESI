@@ -1,136 +1,103 @@
-"""Load the ESI knowledge base and split it into retrievable chunks.
-
-The source document is structured Markdown, so chunking follows its headings
-instead of blindly slicing every N characters. Each chunk keeps the breadcrumb
-of headings above it, which gives the model the context it needs to answer
-questions such as "how many hours of algorithms in 1CP?" where the year only
-appears in the heading.
-"""
-from __future__ import annotations
-
-import re
 from dataclasses import dataclass
 from pathlib import Path
+import re
+from typing import List
 
-HEADING_RE = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
-FAQ_RE = re.compile(r"^\*\*Q:\s*(.+?)\*\*\s*$")
-
-# The verbatim PDF dump is one enormous paragraph; windows keep it retrievable.
-MAX_CHUNK_CHARS = 2_400
-CHUNK_OVERLAP_CHARS = 300
-
-
-@dataclass(frozen=True)
+@dataclass
 class Chunk:
-    """A retrievable passage plus the heading trail it was found under."""
+    id: str
+    source_file: str
+    breadcrumb: str
+    content: str
 
-    title: str
-    text: str
-    path: tuple[str, ...]
+    def to_context(self) -> str:
+        """Formate le passage pour l'injection dans le prompt du LLM."""
+        return f"[[Source: {self.source_file} | Section: {self.breadcrumb}]]\n{self.content}\n"
 
-    @property
-    def heading(self) -> str:
-        # path[0] is the document title, identical on every chunk: drop it so the
-        # breadcrumb we spend prompt tokens on carries only distinguishing levels.
-        trail = self.path[1:] if len(self.path) > 1 else self.path
-        return " > ".join(trail) if trail else self.title
+class KnowledgeBase:
+    def __init__(self, data_dir: Path):
+        self.data_dir = data_dir
+        self.chunks: List[Chunk] = []
+        self._load_all_files()
 
-    def render(self) -> str:
-        return f"### {self.heading}\n{self.text}"
+    def _load_all_files(self):
+        md_files = list(self.data_dir.glob("*.md"))
+        if not md_files:
+            raise FileNotFoundError(f"Aucun fichier Markdown trouvé dans {self.data_dir}")
 
-    def __len__(self) -> int:
-        return len(self.text)
+        for filepath in md_files:
+            text = filepath.read_text(encoding="utf-8")
+            if "Modules" in filepath.name:
+                # Découpage spécifique par module pour préserver les coefficients
+                self.chunks.extend(self._split_modules(filepath.name, text))
+            else:
+                # Découpage hiérarchique par titres (#, ##, ###)
+                self.chunks.extend(self._split_hierarchical(filepath.name, text))
 
+    def _split_modules(self, filename: str, text: str) -> List[Chunk]:
+        """Isole chaque fiche module '### CODE — Nom' pour une précision absolue."""
+        chunks = []
+        # On découpe par niveau 3 (###) où se trouvent les fiches modules
+        sections = re.split(r'\n(?=###\s+)', text)
+        
+        main_context = "ESI Modules Guide"
+        current_year = "General"
 
-def load_knowledge(path: Path, pdf_fallback: Path | None = None) -> str:
-    """Read the knowledge document, falling back to the source PDF if missing."""
-    try:
-        text = Path(path).read_text(encoding="utf-8")
-        if text.strip():
-            return text
-        raise ValueError(f"{path} is empty")
-    except (OSError, ValueError):
-        if pdf_fallback and Path(pdf_fallback).exists():
-            return _extract_pdf(Path(pdf_fallback))
-        raise
+        for idx, sec in enumerate(sections):
+            sec = sec.strip()
+            if not sec:
+                continue
+            
+            # Détection de l'année (1CP, 2CP, 1CS, 2CS SID...)
+            year_match = re.search(r'^#\s+(.+)$', sec, re.MULTILINE)
+            if year_match:
+                current_year = year_match.group(1).strip()
 
+            chunks.append(Chunk(
+                id=f"{filename}_mod_{idx}",
+                source_file=filename,
+                breadcrumb=f"{main_context} > {current_year}",
+                content=sec
+            ))
+        return chunks
 
-def _extract_pdf(path: Path) -> str:
-    from pypdf import PdfReader  # imported lazily: only needed for the fallback
+    def _split_hierarchical(self, filename: str, text: str) -> List[Chunk]:
+        """Découpe les documents généraux en respectant la hiérarchie Markdown."""
+        chunks = []
+        lines = text.split("\n")
+        
+        h1, h2, h3 = filename.replace(".md", ""), "", ""
+        buffer = []
+        chunk_idx = 0
 
-    reader = PdfReader(str(path))
-    return "\n".join((page.extract_text() or "") for page in reader.pages)
+        def save_chunk():
+            nonlocal chunk_idx
+            content = "\n".join(buffer).strip()
+            if len(content) > 50:  # Ignore les fragments vides
+                path = " > ".join([p for p in [h1, h2, h3] if p])
+                chunks.append(Chunk(
+                    id=f"{filename}_{chunk_idx}",
+                    source_file=filename,
+                    breadcrumb=path,
+                    content=content
+                ))
+                chunk_idx += 1
+            buffer.clear()
 
+        for line in lines:
+            if line.startswith("# "):
+                save_chunk()
+                h1 = line[2:].strip()
+                h2, h3 = "", ""
+            elif line.startswith("## "):
+                save_chunk()
+                h2 = line[3:].strip()
+                h3 = ""
+            elif line.startswith("### "):
+                save_chunk()
+                h3 = line[4:].strip()
+            else:
+                buffer.append(line)
 
-def _split_long(text: str, title: str, path: tuple[str, ...]) -> list[Chunk]:
-    """Window an oversized section on sentence boundaries, with overlap."""
-    if len(text) <= MAX_CHUNK_CHARS:
-        return [Chunk(title=title, text=text, path=path)]
-
-    # Prefer breaking after sentence enders / list items over mid-word cuts.
-    pieces = re.split(r"(?<=[.!?])\s+|\n(?=[-•*]\s)|\n{2,}", text)
-    chunks: list[Chunk] = []
-    buffer = ""
-    part = 1
-    for piece in pieces:
-        piece = piece.strip()
-        if not piece:
-            continue
-        if buffer and len(buffer) + len(piece) + 1 > MAX_CHUNK_CHARS:
-            chunks.append(Chunk(f"{title} (part {part})", buffer.strip(), path))
-            part += 1
-            buffer = buffer[-CHUNK_OVERLAP_CHARS:] if CHUNK_OVERLAP_CHARS else ""
-        buffer = f"{buffer} {piece}".strip()
-    if buffer.strip():
-        chunks.append(Chunk(f"{title} (part {part})", buffer.strip(), path))
-    return chunks
-
-
-def chunk_document(document: str) -> list[Chunk]:
-    """Split Markdown into heading-scoped chunks, isolating each FAQ entry."""
-    chunks: list[Chunk] = []
-    stack: list[str] = []          # current heading breadcrumb
-    body: list[str] = []           # lines accumulated under the current heading
-    faq_question: str | None = None
-    faq_body: list[str] = []
-
-    def flush_faq() -> None:
-        nonlocal faq_question, faq_body
-        if faq_question:
-            answer = "\n".join(faq_body).strip()
-            text = f"Q: {faq_question}\n{answer}" if answer else f"Q: {faq_question}"
-            chunks.append(Chunk(faq_question, text, tuple(stack)))
-        faq_question, faq_body = None, []
-
-    def flush_body() -> None:
-        text = "\n".join(body).strip()
-        body.clear()
-        if text:
-            title = stack[-1] if stack else "Overview"
-            chunks.extend(_split_long(text, title, tuple(stack)))
-
-    for line in document.splitlines():
-        heading = HEADING_RE.match(line)
-        if heading:
-            flush_faq()
-            flush_body()
-            level = len(heading.group(1))
-            del stack[level - 1:]
-            stack.append(heading.group(2))
-            continue
-
-        faq = FAQ_RE.match(line.strip())
-        if faq:
-            flush_faq()
-            flush_body()
-            faq_question = faq.group(1).strip()
-            continue
-
-        if faq_question is not None:
-            faq_body.append(line)
-        else:
-            body.append(line)
-
-    flush_faq()
-    flush_body()
-    return [c for c in chunks if c.text.strip()]
+        save_chunk()
+        return chunks
