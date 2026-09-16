@@ -10,9 +10,8 @@ Strict rules of conduct:
    - The elimination grade is not fixed: it is set at 60% of the module's class average.
    - Internships: the 1CP internship is mandatory, and the student must find the company themselves. The 1CS internship lasts 4 to 6 weeks.
    - Residences: Bouraoui Amar is for male students (El Harrach), and El Alia is for female students (with regular water outages).
-4. If the information is not found in the documents, state honestly: "This information is not specified in the available official documents."
+4. If the information is not found in the documents, say briefly that you do not have enough information, without using a fixed disclaimer or mentioning the documents.
 5. Be clear, concise, and helpful, and use Markdown formatting (bullet points or tables) to structure your explanations.
-6. Always conclude by briefly citing the documents consulted.
 """
 
 def format_prompt(question: str, context_chunks: List[Chunk], history: list = None) -> str:

@@ -213,15 +213,6 @@ function bubble(role){
   return b;
 }
 
-function sources(el, list){
-  if (!list?.length) return;
-  const d = document.createElement('div');
-  d.className = 'src';
-  d.innerHTML = '<strong>Sources :</strong> ' + list.slice(0, 4).map(s =>
-    `<span>${s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`).join('');
-  el.appendChild(d);
-}
-
 async function ask(text){
   bubble('me').textContent = text;
   const out = bubble('bot');
@@ -246,7 +237,6 @@ async function ask(text){
     sessionStorage.setItem('cissou_session', sessionId);
 
     out.innerHTML = render(data.answer || data.response || "Pas de réponse.");
-    if (data.sources) sources(out, data.sources);
     log.scrollTop = log.scrollHeight;
 
   } catch(e) {
