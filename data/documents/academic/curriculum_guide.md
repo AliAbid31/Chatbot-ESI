@@ -36,7 +36,7 @@ The program is intentionally broad, giving students exposure to subjects they wi
 
 ### Internship
 
-An **industrial internship is scheduled at the end of 1CP**, providing students with an early practical experience of the professional world.
+An **industrial internship — also called the discovery internship — is scheduled at the end of 1CP**, providing students with an early practical experience of the professional world. It is **mandatory** and typically lasts **1 to 2 weeks**.
 
 ## 2CP — Second Preparatory Year
 
@@ -172,7 +172,7 @@ Practical, company-facing experience is integrated into the curriculum at severa
 
 | Stage | When | Purpose |
 |---|---|---|
-| **Industrial internship** | End of 1CP | First hands-on exposure to a professional environment |
+| **Industrial internship (discovery internship)** | End of 1CP | Mandatory, 1 to 2 weeks — first hands-on exposure to a professional environment |
 | **Company internship** | During 1CS | Mandatory, 4 to 6 weeks in a company |
 | **Graduation project (PFE)** | Final year (3CS) | Capstone project / dissertation closing the engineering program |
 

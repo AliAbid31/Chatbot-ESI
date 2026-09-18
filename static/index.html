@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CISSOU — Assistant ESI</title>
+<title>CISSOU — ESI Assistant</title>
 <style>
   :root{
     --bg:#f4f6f8; --panel:#ffffff; --ink:#12211a; --muted:#5f7267;
@@ -43,7 +43,7 @@
   .dot{width:8px;height:8px;border-radius:50%;background:#bbb;flex:none}
   .dot.on{background:#2f9e63}.dot.off{background:var(--danger)}
   #log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
-  .row{display:flex;gap:10px;max-width:90%}
+  .row{display:flex;gap:10px;max-width:88%}
   .row.me{align-self:flex-end;flex-direction:row-reverse}
   .avatar{
     width:28px;height:28px;border-radius:8px;flex:none;display:grid;place-items:center;
@@ -63,16 +63,10 @@
     font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;
   }
   .bubble strong{font-weight:650}
-
-  /* Style des tableaux Markdown */
-  table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13.5px}
-  th,td{border:1px solid var(--line);padding:6px 10px;text-align:left}
-  th{background:rgba(0,0,0,0.04);font-weight:600}
-
-  .src{margin-top:10px;font-size:11px;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px}
+  .src{margin-top:8px;font-size:11px;color:var(--muted)}
   .src span{
     display:inline-block;border:1px solid var(--line);border-radius:99px;
-    padding:2px 8px;margin:3px 4px 0 0;background:rgba(0,0,0,0.02);
+    padding:1px 8px;margin:3px 4px 0 0;
   }
   .welcome{text-align:center;color:var(--muted);padding:26px 12px}
   .welcome h2{font-size:17px;color:var(--ink);margin-bottom:6px}
@@ -80,9 +74,8 @@
   .chip{
     border:1px solid var(--line);background:transparent;color:var(--ink);
     border-radius:99px;padding:7px 13px;font-size:12.5px;cursor:pointer;font-family:inherit;
-    transition:all 0.15s ease;
   }
-  .chip:hover{border-color:var(--brand);color:var(--brand);background:rgba(31,122,77,0.05)}
+  .chip:hover{border-color:var(--brand);color:var(--brand)}
   .typing span{
     display:inline-block;width:6px;height:6px;margin-right:3px;border-radius:50%;
     background:var(--muted);animation:blink 1.3s infinite ease-in-out;
@@ -116,74 +109,59 @@
     <div class="logo">CS</div>
     <div class="titles">
       <h1>CISSOU</h1>
-      <div class="sub">Assistant académique ESI · Guide complet des étudiants</div>
+      <div class="sub">ESI student assistant · built by the CSE club</div>
     </div>
-    <div class="dot on" id="dot" title="Prêt"></div>
+    <div class="dot" id="dot" title="checking…"></div>
   </header>
 
   <div id="log">
     <div class="welcome" id="welcome">
       <h2>Bienvenue à l'ESI 👋</h2>
-      <div>Posez vos questions sur les modules, coefficients, résidences, transport ou clubs.<br>
-           En français, en anglais ou en argot de l'école.</div>
+      <div>Ask me anything about ESI — courses, admission, CSE, student life.<br>
+           Posez vos questions en français ou en anglais.</div>
       <div class="chips">
-        <button class="chip">Quel est le coef de POO en 2CP ?</button>
-        <button class="chip">Comment aller à l'école depuis la résidence El Alia ?</button>
-        <button class="chip">C'est quoi la règle de la note éliminatoire ?</button>
         <button class="chip">Quelles sont les spécialités en 2CS ?</button>
-        <button class="chip">Quels événements organise le CSE ?</button>
-        <button class="chip">Quels sont les horaires de cantine à Bouraoui ?</button>
+        <button class="chip">What courses are in 1CP?</button>
+        <button class="chip">Comment rejoindre le CSE ?</button>
+        <button class="chip">What is the admission average?</button>
+        <button class="chip">Qui a développé CISSOU ?</button>
       </div>
     </div>
   </div>
 
   <footer>
     <form id="form">
-      <textarea id="input" rows="1" placeholder="Posez une question sur l'ESI…"
+      <textarea id="input" rows="1" placeholder="Ask about ESI…"
                 autocomplete="off" maxlength="2000"></textarea>
-      <button class="send" id="send" type="submit">Envoyer</button>
+      <button class="send" id="send" type="submit">Send</button>
     </form>
     <div class="bar">
-      <span class="hint">Entrée pour envoyer · Maj+Entrée pour saut de ligne</span>
-      <button class="linkbtn" id="reset" type="button">Nouvelle discussion</button>
+      <span class="hint">Enter to send · Shift+Enter for a new line</span>
+      <button class="linkbtn" id="reset" type="button">New conversation</button>
     </div>
   </footer>
 </div>
 
 <script>
+// Same-origin: works on localhost and in production without editing this file.
 const API = location.origin;
 const log = document.getElementById('log');
 const form = document.getElementById('form');
 const input = document.getElementById('input');
 const send = document.getElementById('send');
 const dot = document.getElementById('dot');
-let sessionId = sessionStorage.getItem('cissou_session') || 'user_' + Math.random().toString(36).substring(2, 9);
+let sessionId = sessionStorage.getItem('cissou_session') || null;
 
-/* Rendu Markdown vers HTML sécurisé (incluant Tableaux, Listes, Gras, Code) */
+/* Minimal Markdown -> HTML. Escapes first, so model output is never injected raw. */
 function render(md){
   const esc = md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const lines = esc.split('\n');
-  let html = '', inTable = false, list = null;
-
+  let html = '', list = null;
   const inline = s => s
     .replace(/`([^`]+)`/g,'<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>');
-
   for (let line of lines){
-    // Tableaux Markdown (| ... |)
-    if (line.trim().startsWith('|') && line.trim().endsWith('|')){
-      if (!inTable){ html += '<table>'; inTable = true; }
-      if (line.includes('---')) continue; // Ligne de séparation
-      const cells = line.split('|').slice(1, -1);
-      html += '<tr>' + cells.map(c => `<td>${inline(c.trim())}</td>`).join('') + '</tr>';
-      continue;
-    } else if (inTable) {
-      html += '</table>';
-      inTable = false;
-    }
-
-    // Listes
     const ul = line.match(/^\s*[-•*]\s+(.*)$/);
     const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
     if (ul || ol){
@@ -195,7 +173,6 @@ function render(md){
       if (line.trim()) html += `<p>${inline(line)}</p>`;
     }
   }
-  if (inTable) html += '</table>';
   if (list) html += `</${list}>`;
   return html || '<p></p>';
 }
@@ -204,7 +181,7 @@ function bubble(role){
   document.getElementById('welcome')?.remove();
   const row = document.createElement('div');
   row.className = 'row' + (role === 'me' ? ' me' : '');
-  row.innerHTML = `<div class="avatar">${role === 'me' ? 'Moi' : 'C'}</div>`;
+  row.innerHTML = `<div class="avatar">${role === 'me' ? 'You' : 'C'}</div>`;
   const b = document.createElement('div');
   b.className = 'bubble';
   row.appendChild(b);
@@ -213,35 +190,65 @@ function bubble(role){
   return b;
 }
 
+function sources(el, list){
+  if (!list?.length) return;
+  const d = document.createElement('div');
+  d.className = 'src';
+  d.innerHTML = 'Sources: ' + list.slice(0,4).map(s =>
+    `<span>${s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`).join('');
+  el.appendChild(d);
+}
+
 async function ask(text){
   bubble('me').textContent = text;
   const out = bubble('bot');
   out.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
   send.disabled = true;
 
-  try {
-    const res = await fetch(`${API}/api/chat`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ message: text, session_id: sessionId })
+  try{
+    const res = await fetch(`${API}/api/chat/stream`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ message:text, session_id:sessionId })
     });
-
     if (!res.ok){
-      const err = await res.json().catch(() => ({}));
-      out.innerHTML = `<p class="err">${err.error || 'Erreur requête ('+res.status+')'}</p>`;
+      const err = await res.json().catch(()=>({}));
+      out.innerHTML = `<p class="err">${err.message || 'Request failed ('+res.status+')'}</p>`;
       return;
     }
 
-    const data = await res.json();
-    sessionId = data.session_id;
-    sessionStorage.setItem('cissou_session', sessionId);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', answer = '', srcs = [], first = true;
 
-    out.innerHTML = render(data.answer || data.response || "Pas de réponse.");
-    log.scrollTop = log.scrollHeight;
-
-  } catch(e) {
-    out.innerHTML = '<p class="err">Impossible de contacter CISSOU. Le serveur est-il bien lancé ?</p>';
-    dot.className = 'dot off';
+    while (true){
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const frames = buf.split('\n\n');
+      buf = frames.pop();
+      for (const frame of frames){
+        if (!frame.startsWith('data: ')) continue;
+        let ev; try { ev = JSON.parse(frame.slice(6)); } catch { continue; }
+        if (ev.type === 'meta'){
+          sessionId = ev.session_id;
+          sessionStorage.setItem('cissou_session', sessionId);
+          srcs = ev.sources || [];
+        } else if (ev.type === 'delta'){
+          if (first){ out.innerHTML = ''; first = false; }
+          answer += ev.text;
+          out.innerHTML = render(answer);
+          log.scrollTop = log.scrollHeight;
+        } else if (ev.type === 'error'){
+          out.innerHTML = `<p class="err">${ev.message}</p>`;
+          return;
+        }
+      }
+    }
+    if (!answer) out.innerHTML = '<p class="err">No answer received. Please retry.</p>';
+    else sources(out, srcs);
+  } catch(e){
+    out.innerHTML = '<p class="err">Could not reach CISSOU. Is the server running?</p>';
   } finally {
     send.disabled = false;
     input.focus();
@@ -260,19 +267,27 @@ input.addEventListener('input', () => {
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 130) + 'px';
 });
-
 input.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); form.requestSubmit(); }
 });
-
 log.addEventListener('click', e => {
   if (e.target.classList.contains('chip')) ask(e.target.textContent);
 });
-
-document.getElementById('reset').addEventListener('click', () => {
-  sessionStorage.removeItem('cissou_session');
+document.getElementById('reset').addEventListener('click', async () => {
+  if (sessionId) await fetch(`${API}/api/session/reset`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({session_id: sessionId})
+  }).catch(()=>{});
+  sessionId = null; sessionStorage.removeItem('cissou_session');
   location.reload();
 });
+
+fetch(`${API}/health`).then(r => r.json()).then(h => {
+  dot.className = 'dot ' + (h.llm_available ? 'on' : 'off');
+  dot.title = h.llm_available
+    ? `Online · ${h.knowledge.chunks} knowledge sections`
+    : 'No LLM credentials configured — offline mode';
+}).catch(() => { dot.className = 'dot off'; dot.title = 'Server unreachable'; });
 
 input.focus();
 </script>

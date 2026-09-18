@@ -382,11 +382,11 @@ Students are encouraged to think about internships and professional projects ear
 
 ### First-Year Discovery Internship
 
-The **1st-year discovery internship** is designed to give students insight into how an enterprise operates.
+The **1st-year discovery internship** — the same internship described elsewhere as the **industrial internship at the end of 1CP** — is designed to give students insight into how an enterprise operates.
 
-The **1st-year discovery internship is mandatory**.
+The **1st-year discovery internship is mandatory** and typically lasts **1 to 2 weeks**.
 
-If a student decides to complete the internship, the student needs to **find the company themselves**. The school does not assign the company.
+Students need to **find the company themselves**. The school does not assign the company.
 
 Students are also encouraged to explore early:
 
@@ -768,7 +768,7 @@ Good organization, study groups, peer support, and participation in clubs or stu
 
 ## Is the first-year discovery internship mandatory?
 
-Yes. The **1st-year discovery internship is mandatory**.
+Yes. The **1st-year discovery internship is mandatory** and typically lasts **1 to 2 weeks**. It is the same internship referred to elsewhere as the industrial internship at the end of 1CP.
 
 ## Who finds the company for the discovery internship?
 
@@ -859,7 +859,7 @@ When answering questions about **ESI**, use this document as a primary knowledge
 | Clubs mentioned | CSE, ETIC, GDG Algiers, SHELLMATES |
 | Study resource | Trésor ESI |
 | Academic platforms | ESI Talents / Talent ESI, Webetu Progress |
-| Discovery internship | Not mandatory; student finds company |
+| Discovery internship | Mandatory, 1–2 weeks (end of 1CP); student finds company |
 | CSE founded | 2008, according to provided information |
 | CSE access | Open to students from any field |
 | CSE examples | Hack!T, DataHack, CSE Around Algeria, Hack IN |

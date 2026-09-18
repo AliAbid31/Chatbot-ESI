@@ -10,3 +10,8 @@ requests==2.34.2         # Groq REST (failover)
 
 # Knowledge base
 pypdf==6.17.0            # only used to re-extract data/ESI101_data.pdf
+
+# Hybrid retrieval — local, $0-cost semantic search
+fastembed==0.8.0         # ONNX embeddings (no PyTorch), keeps memory low for Render's free tier
+faiss-cpu==1.15.0        # local vector index, no managed/paid vector DB
+numpy==2.4.4
