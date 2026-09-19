@@ -20,7 +20,7 @@ class EchoProvider(LLMProvider):
             context = match.group(1)
         excerpt = "\n".join(context.splitlines()[:14]).strip()
         return (
-            "[offline mode — no LLM credentials configured]\n\n"
+            "[offline mode — LLM provider unavailable or credentials not usable]\n\n"
             f"Question: {message}\n\n"
             "Most relevant passage from the ESI knowledge base "
             "(include the academic year, semester, and coefficient when shown):\n\n"

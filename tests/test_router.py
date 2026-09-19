@@ -60,6 +60,14 @@ def test_failover_to_the_second_provider():
     assert groq_provider.calls == ["q1"]
 
 
+def test_transient_failure_moves_to_the_second_provider():
+    _, gemini = pool("gemini", {"g1": TransientError("temporary outage")})
+    groq_provider, groq = pool("groq", {"q1": "from groq"})
+    reply, name = LLMRouter([gemini, groq]).generate("sys", [], "hi")
+    assert (reply, name) == ("from groq", "groq")
+    assert groq_provider.calls == ["q1"]
+
+
 def test_transient_error_retries_the_same_key():
     class Flaky(LLMProvider):
         name = "flaky"

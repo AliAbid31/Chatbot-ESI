@@ -162,9 +162,14 @@ function render(md){
     .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>');
   for (let line of lines){
+    const heading = line.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
     const ul = line.match(/^\s*[-•*]\s+(.*)$/);
     const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
-    if (ul || ol){
+    if (heading){
+      if (list){ html += `</${list}>`; list = null; }
+      const level = Math.min(heading[1].length, 4);
+      html += `<h${level}>${inline(heading[2])}</h${level}>`;
+    } else if (ul || ol){
       const want = ul ? 'ul' : 'ol';
       if (list !== want){ if (list) html += `</${list}>`; html += `<${want}>`; list = want; }
       html += `<li>${inline((ul||ol)[1])}</li>`;

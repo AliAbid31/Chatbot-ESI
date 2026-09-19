@@ -33,6 +33,7 @@ log = logging.getLogger(__name__)
 QUOTA_BACKOFF_SECONDS = (30.0, 120.0, 600.0, 1800.0)
 MAX_COOLDOWN_SECONDS = 3600.0
 TRANSIENT_RETRIES = 1
+TRANSIENT_COOLDOWN_SECONDS = 1.0
 
 
 @dataclass
@@ -112,6 +113,8 @@ class LLMRouter:
                 state.quota_strikes += 1
                 state.cooldown_until = time.monotonic() + delay
                 log.warning("%s: quota exceeded, cooling down %.0fs", state.label, delay)
+            elif isinstance(exc, TransientError):
+                state.cooldown_until = time.monotonic() + TRANSIENT_COOLDOWN_SECONDS
 
     def _reward(self, state: KeyState) -> None:
         with self._lock:
@@ -148,6 +151,7 @@ class LLMRouter:
                         if attempt == TRANSIENT_RETRIES:
                             self._penalise(state, exc)
                             errors.append(f"{state.label}: {exc}")
+                            break
                         else:
                             time.sleep(0.6 * (attempt + 1))
                     except (AuthError, QuotaError) as exc:
@@ -185,6 +189,8 @@ class LLMRouter:
                     self._penalise(state, exc)
                     if started:
                         return
+                    if isinstance(exc, TransientError):
+                        break
         yield self.fallback.generate("", system, history, message), self.fallback.name
 
     @property

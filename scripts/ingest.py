@@ -60,6 +60,22 @@ def main() -> int:
 
     print(f"Done in {elapsed:.1f}s | {kb.stats['chunks']} chunks | "
           f"index cached at {settings.vector_index_dir}")
+
+    # Warm the embedding model itself, not just the document vectors. On a
+    # cache hit (unchanged content — e.g. data/index/vectors.npy committed to
+    # git), build_or_load above never calls the model at all, since it only
+    # loads the cached array from disk. But the model is still needed at
+    # request time to embed each incoming *query* — so without this warm-up,
+    # the ~220MB model download happens invisibly inside whichever user's
+    # request is first to hit a fresh deploy, adding real, hidden latency to
+    # their request. Forcing it here means that download happens visibly
+    # during the build step instead, where it belongs.
+    from cissou.embeddings import embed_query
+
+    warm_started = time.perf_counter()
+    embed_query("warm-up")
+    print(f"Embedding model warmed in {time.perf_counter() - warm_started:.1f}s "
+          f"— first real request won't pay this cost.")
     return 0
 
 
