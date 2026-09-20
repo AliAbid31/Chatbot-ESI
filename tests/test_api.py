@@ -27,6 +27,89 @@ def test_chat_grounds_the_offline_reply_in_retrieved_text(client):
     assert "Badreddine" in body["reply"]
 
 
+def test_module_list_never_exposes_prompt_and_is_complete(client):
+    # The default test corpus is the legacy single document, so this checks
+    # the normal LLM path's safety contract without requiring provider keys.
+    body = client.post("/api/chat", json={"message": "What courses are in 1CP?"}).get_json()
+    assert "prompt says" not in body["reply"].lower()
+
+
+def test_new_questions_do_not_inherit_the_previous_curriculum_scope():
+    from cissou.app_factory import create_app
+    from cissou.config import Settings
+
+    structured_app = create_app(Settings(enable_semantic_retrieval=False))
+    structured_client = structured_app.test_client()
+    first = structured_client.post("/api/chat", json={"message": "What courses are in 1CP?"}).get_json()
+    session_id = first["session_id"]
+
+    second = structured_client.post(
+        "/api/chat",
+        json={"message": "What are modules in S1 2CP?", "session_id": session_id},
+    ).get_json()
+    third = structured_client.post(
+        "/api/chat",
+        json={"message": "What are the specialities in ESI?", "session_id": session_id},
+    ).get_json()
+    fourth = structured_client.post(
+        "/api/chat",
+        json={"message": "what is la note eliminatoire?", "session_id": session_id},
+    ).get_json()
+
+    assert "ECON" in second["reply"] and "ALSDS" not in second["reply"]
+    assert "SIT" in third["reply"] and "ALG1" not in third["reply"]
+    assert "offline mode" not in third["reply"].lower()
+    assert "note éliminatoire" in fourth["reply"].lower()
+    assert "offline mode" not in fourth["reply"].lower()
+
+
+def test_first_year_mathematics_includes_both_semesters(client):
+    body = client.post(
+        "/api/chat",
+        json={"message": "quelles modules de math on etudie en 1ere annee"},
+    ).get_json()
+
+    assert all(code in body["reply"] for code in ("ALG1", "ANAL1", "ALG2", "ANAL2"))
+
+
+def test_catalog_module_list_is_complete_and_not_llm_truncated(client):
+    body = client.post(
+        "/api/chat",
+        json={"message": "Quelles sont les modules en 1ere annee?"},
+    ).get_json()
+
+    assert body["provider"] == "knowledge"
+    assert all(code in body["reply"] for code in ("ALSDS", "ANAL1", "ARCH1", "ALG1", "ALSDD", "ANAL2"))
+    assert "-\n" not in body["reply"]
+
+
+def test_followup_year_replaces_previous_year_scope(client):
+    first = client.post(
+        "/api/chat",
+        json={"message": "quels modules de maths en 1ere annee"},
+    ).get_json()
+    second = client.post(
+        "/api/chat",
+        json={"message": "et en 2eme annee?", "session_id": first["session_id"]},
+    ).get_json()
+
+    assert all(code in second["reply"] for code in ("ALG3", "ANAL3", "PRST1", "ANAL4", "LOGM", "PRST2"))
+    assert "ALG1" not in second["reply"] and "ANAL1" not in second["reply"]
+
+
+def test_short_followup_year_without_the_word_year_replaces_scope(client):
+    first = client.post(
+        "/api/chat",
+        json={"message": "quels modules de maths en 1ere annee"},
+    ).get_json()
+    second = client.post(
+        "/api/chat",
+        json={"message": "et en 2eme ?", "session_id": first["session_id"]},
+    ).get_json()
+
+    assert "ALG3" in second["reply"] and "ALG1" not in second["reply"]
+
+
 def test_session_id_is_reused_across_turns(client):
     first = client.post("/api/chat", json={"message": "What is 1CP?"}).get_json()
     second = client.post("/api/chat", json={"message": "And 2CP?",
@@ -85,6 +168,12 @@ def test_stream_emits_meta_delta_and_done(client):
     assert kinds[0] == "meta" and kinds[-1] == "done"
     assert "delta" in kinds
     assert events[0]["session_id"]
+
+
+def test_stream_declares_utf8_charset(client):
+    response = client.post("/api/chat/stream", json={"message": "Quelles sont les spécialités ?"})
+    assert response.mimetype == "text/event-stream"
+    assert response.mimetype_params.get("charset") == "utf-8"
 
 
 def test_rate_limiter_blocks_a_flood(app):

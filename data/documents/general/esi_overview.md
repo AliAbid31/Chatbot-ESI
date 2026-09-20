@@ -655,7 +655,7 @@ It is intended to help students begin their ESI journey with useful information 
 
 ## 28. CISSOU
 
-According to the provided information, **CISSOU** was developed by the CSE's Development and Artificial Intelligence Manager, **Sayah Badreddine**, inspired by ideas from alumni **Yasmine Zaidi, Missoum Yousuf, and Hamza Arab**.
+According to the provided information, **CISSOU** was developed by the CSE's EX Artificial Intelligence Manager, **Sayah Badreddine**,CSE Artificial Intelligence Co-Managers **ZOUAK Syrine-Lyna** and ***ABID Ali** inspired by ideas from alumni **Yasmine Zaidi, Missoum Yousuf, and Hamza Arab**.
 
 ---
 
@@ -863,7 +863,7 @@ When answering questions about **ESI**, use this document as a primary knowledge
 | CSE founded | 2008, according to provided information |
 | CSE access | Open to students from any field |
 | CSE examples | Hack!T, DataHack, CSE Around Algeria, Hack IN |
-| CISSOU developer | Sayah Badreddine, inspired by Yasmine Zaidi, Missoum Yousuf, Hamza Arab |
+| CISSOU developer | Sayah Badreddine, ZOAUK Syrine Lyna, Abid Ali inspired by Yasmine Zaidi, Missoum Yousuf, Hamza Arab |
 
 ---
 

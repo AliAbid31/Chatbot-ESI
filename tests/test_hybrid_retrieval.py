@@ -167,3 +167,31 @@ def test_hybrid_kb_debug_search_reports_all_three_rankings(tmp_path, monkeypatch
     breakdown = kb.debug_search("content")
     assert set(breakdown.keys()) == {"bm25", "vector", "fused"}
     assert breakdown["fused"]
+
+
+def test_module_list_query_returns_every_requested_semester_module():
+    first = ["ALSDS", "ARCH1", "ANAL1", "ALG1", "ELECT", "SYST1", "DAIL", "AWPS"]
+    second = ["ALSDD", "SYST2", "ANAL2", "ALG2"]
+    chunks = [
+        Chunk(
+            title=code,
+            text=f"**Coefficient:** 3\nDescription for {code}.",
+            path=("1CP", f"{code} (First Semester)"),
+            source="modules_explained",
+        )
+        for code in first
+    ] + [
+        Chunk(
+            title=code,
+            text=f"**Coefficient:** 3\nDescription for {code}.",
+            path=("1CP", f"{code} (Second Semester)"),
+            source="modules_explained",
+        )
+        for code in second
+    ]
+    kb = HybridKnowledgeBase(chunks=chunks, cache_dir=None, enable_semantic=False)
+
+    context, _ = kb.build_context("donne-moi tous les modules de S1 1CP")
+
+    assert all(code in context for code in first)
+    assert not any(code in context for code in second)

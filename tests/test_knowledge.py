@@ -1,4 +1,5 @@
 from cissou.knowledge import MAX_CHUNK_CHARS, chunk_document
+from pathlib import Path
 
 SAMPLE = """# Doc Title
 
@@ -63,3 +64,17 @@ def test_academic_level_stays_in_module_breadcrumb():
     chunk = next(c for c in chunk_document(document) if "ARCH1" in c.heading)
     assert "1CP" in chunk.heading
     assert "First Semester" in chunk.heading
+
+
+def test_structured_module_catalog_contains_all_academic_groups():
+    catalog = Path(__file__).resolve().parent.parent / "data" / "documents" / "academic" / "modules_catalog.md"
+    text = catalog.read_text(encoding="utf-8")
+
+    assert text.count("| 1CP |") == 16
+    assert text.count("| 2CP |") == 16
+    assert text.count("| 1CS |") == 17
+    assert text.count("| 2CS | SID |") == 21
+    assert text.count("| 2CS | SIT |") == 29
+    assert text.count("| 2CS | SIL |") == 31
+    assert text.count("| 2CS | SIQ |") == 31
+    assert all(column in text for column in ("Code", "Nom", "Semestre", "Coefficient", "Description"))

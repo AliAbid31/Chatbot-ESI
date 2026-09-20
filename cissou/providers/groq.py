@@ -46,6 +46,8 @@ class GroqProvider(LLMProvider):
     @staticmethod
     def _check(response: requests.Response) -> None:
         if response.status_code in (401, 403):
+            if "network settings" in response.text.lower():
+                raise TransientError(f"groq network access failed: {response.text[:200]}")
             raise AuthError(f"groq auth failed: {response.text[:200]}")
         if response.status_code == 429:
             raise QuotaError(f"groq quota exceeded: {response.text[:200]}",
@@ -85,10 +87,16 @@ class GroqProvider(LLMProvider):
         except requests.RequestException as exc:
             raise TransientError(str(exc)) from exc
         self._check(response)
-        for raw in response.iter_lines(decode_unicode=True):
-            if not raw or not raw.startswith("data: "):
+        for raw in response.iter_lines(decode_unicode=False):
+            if not raw:
                 continue
-            data = raw[6:]
+            try:
+                line = raw.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise TransientError(f"groq returned invalid UTF-8: {exc}") from exc
+            if not line.startswith("data: "):
+                continue
+            data = line[6:]
             if data == "[DONE]":
                 break
             try:

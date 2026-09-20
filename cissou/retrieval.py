@@ -143,6 +143,15 @@ _ALIASES_BY_STEM: dict[str, tuple[str, ...]] = {}
 _SUFFIXES = ("ements", "ement", "ations", "ation", "ances", "ance", "ities",
              "ity", "ings", "ing", "s")
 
+_CURRICULUM_LEVEL_RE = re.compile(r"\b(?:1|2)cp\b|\b(?:1|2|3)cs\b", re.IGNORECASE)
+_SEMESTER_PATTERNS = {
+    "first": re.compile(r"\b(?:s1|semestre\s+1|premier\s+semestre|first\s+semester)\b"),
+    "second": re.compile(r"\b(?:s2|semestre\s+2|deuxieme\s+semestre|second\s+semester)\b"),
+}
+_MODULE_LIST_RE = re.compile(
+    r"\b(?:module|modules|matiere|matieres|cours|course|courses|programme|curriculum)\b"
+)
+
 
 def normalize(text: str) -> str:
     """Lowercase and strip accents so 'préparatoire' == 'preparatoire'."""
@@ -340,7 +349,39 @@ class KnowledgeBase:
         self.min_score = min_score
 
     def search(self, query: str, top_k: int | None = None) -> list[Hit]:
-        return self.index.search(query, top_k or self.top_k, self.min_score)
+        hits = self.index.search(query, top_k or self.top_k, self.min_score)
+        return self._complete_curriculum_search(query, hits)
+
+    def _complete_curriculum_search(self, query: str, hits: list[Hit]) -> list[Hit]:
+        """Return every module for an explicit level/semester list request."""
+        normalized_query = normalize(query)
+        if not _MODULE_LIST_RE.search(normalized_query):
+            return hits
+        level_match = _CURRICULUM_LEVEL_RE.search(normalized_query)
+        if not level_match:
+            return hits
+
+        level = level_match.group(0).lower()
+        semester = next(
+            (name for name, pattern in _SEMESTER_PATTERNS.items()
+             if pattern.search(normalized_query)),
+            None,
+        )
+        candidates: list[Hit] = []
+        existing = {hit.index: hit for hit in hits}
+        for index, chunk in enumerate(self.chunks):
+            heading = normalize(chunk.heading)
+            if level not in heading or chunk.source != "modules_explained":
+                continue
+            if semester:
+                semester_label = "first semester" if semester == "first" else "second semester"
+                if semester_label not in heading:
+                    continue
+            candidates.append(existing.get(index, Hit(chunk, 0.0, index)))
+
+        if not candidates:
+            return hits
+        return candidates
 
     def build_context(self, query: str) -> tuple[str, list[str]]:
         """Return (context text, source labels) capped at ``max_context_chars``.
@@ -436,10 +477,12 @@ class HybridKnowledgeBase(KnowledgeBase):
         if self.vector_store is None:
             # No semantic layer available: behave exactly like plain BM25,
             # including its min_score cutoff.
-            return self.index.search(query, top_k, self.min_score)
+            hits = self.index.search(query, top_k, self.min_score)
+            return self._complete_curriculum_search(query, hits)
 
         _, _, fused = self._fused(query)
-        return [Hit(f.chunk, f.score, f.index) for f in fused[:top_k]]
+        hits = [Hit(f.chunk, f.score, f.index) for f in fused[:top_k]]
+        return self._complete_curriculum_search(query, hits)
 
     def debug_search(self, query: str) -> dict:
         """Retrieval breakdown for /api/search — BM25, vector, and fused ranks."""

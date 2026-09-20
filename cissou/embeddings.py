@@ -44,7 +44,7 @@ def _get_model():
                 from fastembed import TextEmbedding
 
                 log.info("loading embedding model %s", MODEL_NAME)
-                _model = TextEmbedding(model_name=MODEL_NAME)
+                _model = TextEmbedding(model_name=MODEL_NAME , threads=1)
     return _model
 
 

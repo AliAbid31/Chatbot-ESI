@@ -1,3 +1,13 @@
+---
+title: CISSOU
+emoji: 🎓
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # CISSOU — ESI Student Assistant
 
 CISSOU is the AI assistant of **ESI** (École Supérieure d'Informatique, Algiers), built by the
@@ -202,8 +212,8 @@ git history.
 
 ## Credits
 
-Built by the **CSE (Scientific Club of ESI)**. CISSOU was developed by **Badreddine Sayah**,
-CSE Development & AI Co-Manager, inspired by alumni development managers **Yasmine Zaidi**,
+Built by the **CSE (Scientific Club of ESI)**. CISSOU was developed by **Badreddine Sayah**,**ZOUAK Syrine Lyna** , **ABID Ali**
+CSE AI Co-Managers, inspired by alumni development managers **Yasmine Zaidi**,
 **Hamza Arab** and **Youcef Missoum**.
 
 - [ESI](http://www.esi.dz/) · [CSE](https://cse.club/)

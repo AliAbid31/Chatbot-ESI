@@ -176,21 +176,22 @@ class LLMRouter:
                     yield self.fallback.generate("", system, history, message), self.fallback.name
                     return
                 attempts += 1
-                started = False
+                fragments: list[str] = []
                 try:
                     for fragment in pool.provider.stream(state.key, system, history, message):
-                        started = True
-                        yield fragment, pool.provider.name
-                    if started:
+                        fragments.append(fragment)
+                    if fragments:
                         self._reward(state)
+                        for fragment in fragments:
+                            yield fragment, pool.provider.name
                         return
                     self._penalise(state, TransientError("empty stream"))
                 except (AuthError, QuotaError, TransientError) as exc:
                     self._penalise(state, exc)
-                    if started:
-                        return
+                    # Do not leak a partial provider response. Another provider
+                    # or the fallback can still return a complete answer.
                     if isinstance(exc, TransientError):
-                        break
+                        continue
         yield self.fallback.generate("", system, history, message), self.fallback.name
 
     @property

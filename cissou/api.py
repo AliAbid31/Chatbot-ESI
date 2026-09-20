@@ -151,6 +151,7 @@ def chat_stream():
 
     service = current_app.config["CHAT_SERVICE"]
     session = service.sessions.get(session_id)
+    structured_reply = service.structured_curriculum_answer(message, session)
     system, history, sources = service.prepare(message, session)
 
     def events():
@@ -158,10 +159,15 @@ def chat_stream():
         parts: list[str] = []
         provider = "unknown"
         try:
-            for fragment, name in service.router.stream(system, history, message):
-                provider = name
-                parts.append(fragment)
-                yield _sse({"type": "delta", "text": fragment})
+            if structured_reply is not None:
+                provider = "knowledge"
+                parts.append(structured_reply)
+                yield _sse({"type": "delta", "text": structured_reply})
+            else:
+                for fragment, name in service.router.stream(system, history, message):
+                    provider = name
+                    parts.append(fragment)
+                    yield _sse({"type": "delta", "text": fragment})
         except Exception:
             log.exception("stream failed")
             yield _sse({"type": "error", "message": "The answer was interrupted. Please retry."})
@@ -171,7 +177,7 @@ def chat_stream():
             service.sessions.record(session, message, reply)
         yield _sse({"type": "done", "provider": provider})
 
-    return Response(events(), mimetype="text/event-stream",
+    return Response(events(), content_type="text/event-stream; charset=utf-8",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 

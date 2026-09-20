@@ -1,0 +1,29 @@
+# Used to deploy to Azure Container Apps or Google Cloud Run — both build
+# this automatically from source (no manual docker build/push needed).
+# Also works for local `docker build`/`docker run` testing.
+# Render's Procfile stays as-is for anyone still using Render instead.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Leverage Docker layer caching: dependencies only reinstall when
+# requirements.txt actually changes, not on every content/code edit.
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Bakes the vector index into the image at build time (same reasoning as
+# Render's build command): the committed data/index/vectors.npy is almost
+# always a cache hit here, so this mainly runs the model-warm-up step,
+# downloading the ~220MB embedding model during the build rather than
+# during some visitor's first real request.
+RUN python scripts/ingest.py || true
+
+# Works for both Cloud Run and Azure Container Apps (both inject $PORT
+# dynamically, typically 8080) and for local `docker run` testing (falls
+# back to 8080 if $PORT is unset). app.py itself already reads $PORT with
+# its own fallback — this just needs to pass whatever the platform gives
+# it straight through.
+EXPOSE 8080
+CMD exec gunicorn app:app --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 3 --timeout 120

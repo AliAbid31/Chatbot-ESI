@@ -1,6 +1,6 @@
 import pytest
 
-from cissou.providers import AuthError, LLMProvider, QuotaError, TransientError
+from cissou.providers import AuthError, EchoProvider, LLMProvider, QuotaError, TransientError
 from cissou.router import KeyState, LLMRouter, ProviderPool
 
 
@@ -93,7 +93,7 @@ def test_degrades_to_offline_instead_of_crashing():
     _, p = pool("gemini", {"k1": AuthError("dead")})
     reply, name = LLMRouter([p]).generate("sys", [], "hi")
     assert name == "offline"
-    assert "offline mode" in reply
+    assert "matching passage" in reply
 
 
 def test_no_keys_configured_still_answers():
@@ -168,7 +168,7 @@ def test_request_stops_after_the_attempt_budget():
     reply, name = LLMRouter([p], max_attempts=3).generate("sys", [], "hi")
     assert len(provider.calls) == 3, f"tried {len(provider.calls)} keys, budget was 3"
     assert name == "offline"
-    assert "offline mode" in reply
+    assert "matching passage" in reply
 
 
 def test_budget_spans_providers_not_per_provider():
@@ -177,6 +177,64 @@ def test_budget_spans_providers_not_per_provider():
     _, name = LLMRouter([gemini, groq], max_attempts=2).generate("sys", [], "hi")
     assert name == "offline"
     assert groq_provider.calls == [], "budget was spent before reaching groq"
+
+
+def test_stream_does_not_leak_partial_answer_after_provider_failure():
+    class PartialProvider(LLMProvider):
+        name = "partial"
+
+        def generate(self, api_key, system, history, message):
+            return "fallback"
+
+        def stream(self, api_key, system, history, message):
+            yield "partial"
+            raise TransientError("connection dropped")
+
+    provider = PartialProvider(model="test")
+    router = LLMRouter(
+        [ProviderPool(provider=provider, keys=[KeyState(key="k", label="partial#1")])],
+        fallback=EchoProvider(model="offline"),
+    )
+
+    output = "".join(fragment for fragment, _ in router.stream("<knowledge>fact</knowledge>", [], "question"))
+
+    assert "partial" not in output
+    assert "matching passage" in output
+
+
+def test_gemini_service_unavailable_is_transient():
+    from cissou.providers.gemini import classify
+
+    assert isinstance(classify(RuntimeError("503 Service Unavailable")), TransientError)
+
+
+def test_groq_network_access_denial_is_transient():
+    from cissou.providers.groq import GroqProvider
+
+    class Response:
+        status_code = 403
+        text = '{"error":{"message":"Access denied. Please check your network settings."}}'
+
+    with pytest.raises(TransientError):
+        GroqProvider._check(Response())
+
+
+def test_groq_stream_decodes_utf8_bytes(monkeypatch):
+    from cissou.providers.groq import GroqProvider
+
+    class Response:
+        status_code = 200
+        text = ""
+
+        def iter_lines(self, decode_unicode):
+            assert decode_unicode is False
+            yield b'data: {"choices":[{"delta":{"content":"sp\xc3\xa9cialit\xc3\xa9s"}}]}'
+            yield b"data: [DONE]"
+
+    monkeypatch.setattr("cissou.providers.groq.requests.post", lambda *args, **kwargs: Response())
+    provider = GroqProvider(model="test")
+
+    assert "spécialités" == "".join(provider.stream("key", "system", [], "question"))
 
 
 def test_budget_does_not_block_a_healthy_first_key():

@@ -110,9 +110,12 @@ def load_documents_from_dir(base_dir: Path) -> list[Chunk]:
     if not base_dir.exists():
         return chunks
 
+    catalog = base_dir / "academic" / "modules_catalog.md"
     for path in sorted(base_dir.rglob("*.md")):
+        if path.name == "modules_explained.md" and catalog.exists():
+            continue
         category = path.parent.name if path.parent != base_dir else "other"
-        source = path.stem
+        source = "modules_explained" if path.name == "modules_catalog.md" else path.stem
         text = path.read_text(encoding="utf-8")
         for chunk in chunk_document(text):
             chunks.append(dataclasses.replace(
