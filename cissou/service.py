@@ -21,10 +21,16 @@ MODULE_LIST_RE = re.compile(
     r"\b(?:module|modules|matiere|matieres|cours|course|courses|programme|curriculum)\b",
     re.IGNORECASE,
 )
+CURRICULUM_LIST_RE = re.compile(
+    r"\b(?:what|which|quels?|quelles?)\b.*\b(?:study|take|learn|module|modules|"
+    r"course|courses|subject|subjects|matiere|matieres|cours)\b"
+    r"|\b(?:study|take|learn)\b.*\b(?:1|2)CP\b",
+    re.IGNORECASE,
+)
 ACADEMIC_LEVEL_RE = re.compile(r"\b(?:1|2)CP\b|\b(?:1|2|3)CS\b", re.IGNORECASE)
 YEAR_HINTS = (
-    (re.compile(r"\b(?:1ere|1re|premiere|first)(?!\s+semestre)(?:\s+annee?)?\b", re.IGNORECASE), "1CP"),
-    (re.compile(r"\b(?:2eme|2e|deuxieme|second)(?!\s+semestre)(?:\s+annee?)?\b", re.IGNORECASE), "2CP"),
+    (re.compile(r"\b(?:1ere|1re|1st|premiere|first)(?!\s+semestre)(?:\s+annee?|\s+year)?\b", re.IGNORECASE), "1CP"),
+    (re.compile(r"\b(?:2eme|2e|2nd|deuxieme|second)(?!\s+semestre)(?:\s+annee?|\s+year)?\b", re.IGNORECASE), "2CP"),
 )
 MODULE_HEADING_RE = re.compile(
     r"(?:^| > )([A-Z][A-Z0-9_]+)\s+[—-]\s+(.+?)\s+\((First|Second) Semester\)$"
@@ -83,15 +89,16 @@ class ChatService:
 
     @staticmethod
     def _academic_level(text: str) -> str | None:
-        explicit = list(ACADEMIC_LEVEL_RE.finditer(text))
-        if explicit:
-            return explicit[-1].group(0).upper()
-        hinted = [
-            (match, level)
+        candidates = [
+            (match.start(), match.group(0).upper())
+            for match in ACADEMIC_LEVEL_RE.finditer(text)
+        ]
+        candidates.extend(
+            (match.start(), level)
             for pattern, level in YEAR_HINTS
             for match in pattern.finditer(text)
-        ]
-        return max(hinted, key=lambda item: item[0].start())[1] if hinted else None
+        )
+        return max(candidates, key=lambda item: item[0])[1] if candidates else None
 
     def prepare(self, message: str, session: Session) -> tuple[str, list[dict], list[str]]:
         history = self.sessions.history(session)
@@ -103,9 +110,14 @@ class ChatService:
         query = self._retrieval_query(message, self.sessions.history(session))
         normalized = normalize(query)
         inferred_level = self._academic_level(normalized)
-        if not MODULE_LIST_RE.search(normalized) or not inferred_level:
-            if not inferred_level or not MODULE_LIST_RE.search(normalized):
-                return None
+        is_curriculum_list = (MODULE_LIST_RE.search(normalized)
+                              or CURRICULUM_LIST_RE.search(normalized))
+        if not is_curriculum_list or not inferred_level:
+            return None
+        if any(pattern.search(normalize(message)) for pattern, _ in YEAR_HINTS):
+            query = ACADEMIC_LEVEL_RE.sub("", query)
+            query = f"{query} {inferred_level}"
+            normalized = normalize(query)
         if not ACADEMIC_LEVEL_RE.search(normalized):
             query = f"{query} {inferred_level}"
             normalized = normalize(query)
@@ -119,7 +131,8 @@ class ChatService:
             prefixes = ()
 
         rows: list[tuple[str, str, str, str, str]] = []
-        for chunk in self.kb.chunks:
+        retrieved_chunks = {hit.chunk for hit in hits}
+        for chunk in retrieved_chunks:
             if chunk.source != "modules_explained":
                 continue
             for line in chunk.text.splitlines():
@@ -133,7 +146,8 @@ class ChatService:
                 rows.append((semester, code, row.group(5).strip(), row.group(6).strip(), inferred_level))
 
         if not rows:
-            modules = [hit.chunk for hit in hits if hit.chunk.source == "modules_explained"]
+            modules = [chunk for chunk in retrieved_chunks
+                       if chunk.source == "modules_explained"]
         else:
             modules = []
         entries: list[tuple[str, str, str, str, str]] = []

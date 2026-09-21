@@ -28,10 +28,24 @@ def test_chat_grounds_the_offline_reply_in_retrieved_text(client):
 
 
 def test_module_list_never_exposes_prompt_and_is_complete(client):
-    # The default test corpus is the legacy single document, so this checks
-    # the normal LLM path's safety contract without requiring provider keys.
+    # A complete catalog answer must be deterministic and must not depend on
+    # an LLM following the prompt perfectly.
     body = client.post("/api/chat", json={"message": "What courses are in 1CP?"}).get_json()
     assert "prompt says" not in body["reply"].lower()
+    assert body["provider"] == "knowledge"
+    assert body["reply"].count("- **") == 16
+    assert all(code in body["reply"] for code in (
+        "ALG1", "ANAL1", "ELECT", "ALSDS", "ARCH1", "SYST1", "DAIL", "AWPS",
+        "ALG2", "ANAL2", "ELEF1", "ALSDD", "SYST2", "IORGA", "DECO", "AAWPS",
+    ))
+
+
+def test_natural_curriculum_list_wording_is_complete(client):
+    body = client.post(
+        "/api/chat", json={"message": "What do I study in 1CP?"}
+    ).get_json()
+    assert body["provider"] == "knowledge"
+    assert body["reply"].count("- **") == 16
 
 
 def test_new_questions_do_not_inherit_the_previous_curriculum_scope():
@@ -95,6 +109,18 @@ def test_followup_year_replaces_previous_year_scope(client):
 
     assert all(code in second["reply"] for code in ("ALG3", "ANAL3", "PRST1", "ANAL4", "LOGM", "PRST2"))
     assert "ALG1" not in second["reply"] and "ANAL1" not in second["reply"]
+
+
+def test_english_followup_year_replaces_previous_year_scope(client):
+    first = client.post(
+        "/api/chat", json={"message": "What courses are in 1CP?"}
+    ).get_json()
+    second = client.post(
+        "/api/chat",
+        json={"message": "What about in 2nd year?", "session_id": first["session_id"]},
+    ).get_json()
+    assert second["provider"] == "knowledge"
+    assert "ALG3" in second["reply"] and "ALG1" not in second["reply"]
 
 
 def test_short_followup_year_without_the_word_year_replaces_scope(client):
